@@ -1,32 +1,22 @@
 #pragma once
-// Persists the (possibly rotated) mobile token in NVS so a reboot after a 24h
-// token rotation does not lock us out past the 5-min grace window.
-// See 01-PROTOCOL.md §5.
-#include <Arduino.h>
-#include <Preferences.h>
+// Loads/saves ClawdConfigData as JSON in NVS, and handles admin-password hashing.
+// NVS survives `upload`/`uploadfs`, so user config is not lost on a re-flash.
+#include "Config.h"
 
 namespace ConfigStore {
 
-inline String loadToken() {
-  Preferences p;
-  p.begin("clawd", /*readOnly=*/true);
-  String t = p.getString("token", "");
-  p.end();
-  return t;
-}
+ClawdConfigData load();                 // returns defaults (empty) if nothing stored
+bool           save(const ClawdConfigData &cfg);
+void           clear();                 // wipe stored config
 
-inline void saveToken(const String &t) {
-  Preferences p;
-  p.begin("clawd", false);
-  p.putString("token", t);
-  p.end();
-}
+// Admin password (never stored in plaintext)
+String sha256Hex(const String &input);
+void   setAdminPassword(ClawdConfigData &cfg, const String &plaintext);
+bool   checkAdminPassword(const ClawdConfigData &cfg, const String &plaintext);
 
-inline void clearToken() {
-  Preferences p;
-  p.begin("clawd", false);
-  p.remove("token");
-  p.end();
-}
+// Legacy helpers kept so existing callers keep working; operate on cfg.token.
+String loadToken();
+void   saveToken(const String &token);
+void   clearToken();
 
 }  // namespace ConfigStore

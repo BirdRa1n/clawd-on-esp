@@ -396,9 +396,45 @@ aprovação, e toda a stack Electron/Node do desktop.
 2. ~~Variante do CYD com PSRAM?~~ **Resolvido no bring-up: WROOM sem PSRAM**
    (ESP32-D0WD-V3, ~297 KB heap). Segue o plano sem PSRAM — viável. Opção aberta:
    trocar por uma placa com PSRAM no futuro (upgrade, não bloqueia o MVP).
-3. **Provisionamento:** `clawd.json` no SD (recomendado), portal captive Wi-Fi,
-   ou config via serial?
+3. ~~Provisionamento?~~ **Resolvido: portal captive Wi-Fi** (SoftAP + web server),
+   config em NVS. Ver §13.
 4. **Uso do SD já no MVP:** só para `clawd.json`, ou também para os assets desde
    o início (deixando a flash livre para OTA)?
 5. **Extras de hardware:** usar LED RGB e/ou alto-falante como reforço de estado
    (ex.: som/`notification`)?
+
+---
+
+## 13. Provisionamento e configuração (zero-touch) ✅ IMPLEMENTADO
+
+Elimina a necessidade de `secrets.h`: o usuário configura tudo pelo celular.
+
+**Armazenamento (`lib/ClawdConfig`):** config em **NVS** como JSON (sobrevive a
+`upload`/`uploadfs`): `networks[]` (ssid/pass/priority), `hosts[]` (host/port),
+`token`, `adminHash` (SHA-256 via mbedTLS), `provisioned`.
+
+**Fluxo (`src/main.cpp` + `lib/ClawdPortal/WiFiConnection`):**
+```
+load config → conectar à rede conhecida de MAIOR prioridade visível
+ ├─ conectou → STA: dashboard (auth admin) + NetLink (WS) + mascote;
+ │             tela "Conectado" com QR da URL do painel por ~8 s
+ └─ nenhuma  → SoftAP "Clawd-Setup-XXXX" (aberto) + DNS captive;
+               tela alterna mascote "aguardando" e QR (join + IP do portal)
+```
+
+**Portal (`lib/ClawdPortal/WebPortal`, `WebServer`+`DNSServer` nativos, HTML em
+PROGMEM):**
+- **Setup (AP):** formulário (rede, host/porta/token, senha de admin) → salva → reboot.
+- **Dashboard (STA):** protegido por **HTTP Basic** contra o hash de admin; permite
+  gerenciar múltiplas redes com prioridade (casa/trabalho sem reset), a lista de
+  hosts do clawd-on-desk (failover se o IP muda) e o token.
+
+**Tela (`lib/ClawdDisplay/InfoScreen`):** QR (via `ricmoo/QRCode`) + texto, tema
+Clawd. QR de join Wi-Fi no AP; QR da URL do painel no STA.
+
+**`secrets.h`** vira **seed opcional**: se presente com valores reais, semeia a
+config no 1º boot; caso contrário, o portal cuida de tudo. `-t erase` limpa o NVS
+para reprovisionar do zero.
+
+**Prioridades técnicas confirmadas:** páginas embutidas no firmware (funcionam sem
+`uploadfs`); AP aberto (o QR já facilita o join); web stack nativo (sem AsyncTCP).
