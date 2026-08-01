@@ -1,0 +1,8 @@
+{
+  "name": "ClawdCore",
+  "version": "0.1.0",
+  "description": "Clawd display-state domain: state enum, priority aggregation and the session store. Pure logic, no hardware dependencies.",
+  "keywords": "clawd, state, domain",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}
