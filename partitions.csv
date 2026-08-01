@@ -1,0 +1,6 @@
+# clawd-on-esp custom partition table (4 MB flash, no OTA)
+#   ~1.31 MB app + ~2.62 MB LittleFS (all animation frames) — see docs/clawd-esp32/02-ARCHITECTURE.md §7
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+factory,  app,  factory, 0x10000,  0x150000,
+spiffs,   data, spiffs,  0x160000, 0x2A0000,

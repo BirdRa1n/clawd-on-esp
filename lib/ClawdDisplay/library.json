@@ -1,0 +1,11 @@
+{
+  "name": "ClawdDisplay",
+  "version": "0.1.0",
+  "description": "Renders the dominant Clawd state as a CRLI (palette-indexed RLE) animation on the TFT (TFT_eSPI + LittleFS).",
+  "keywords": "clawd, display, tft, animation",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": {
+    "ClawdCore": "*"
+  }
+}

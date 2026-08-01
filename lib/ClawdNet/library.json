@@ -1,0 +1,11 @@
+{
+  "name": "ClawdNet",
+  "version": "0.1.0",
+  "description": "Wi-Fi + WebSocket client speaking Clawd Mobile Protocol v1 (snapshot / state / session_deleted / token_rotate).",
+  "keywords": "clawd, websocket, protocol",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": {
+    "ClawdCore": "*"
+  }
+}

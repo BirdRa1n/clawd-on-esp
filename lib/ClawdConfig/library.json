@@ -1,0 +1,8 @@
+{
+  "name": "ClawdConfig",
+  "version": "0.1.0",
+  "description": "Persists the rotating mobile token in NVS (Preferences) so a reboot does not lock the device out past the token grace window.",
+  "keywords": "clawd, config, nvs",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}
