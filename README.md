@@ -23,14 +23,15 @@ clawd-on-esp/
 ├── partitions.csv          # ~1,31 MB app + ~2,62 MB LittleFS (assets), sem OTA
 ├── include/
 │   ├── secrets.example.h   # modelo de credenciais (versionado)
-│   └── secrets.h           # credenciais reais (gitignored)
+│   └── secrets.h           # seed opcional de dev (gitignored)
 ├── src/
-│   └── main.cpp            # composition root: liga rede -> estado -> tela
+│   └── main.cpp            # composition root: config -> conexão -> portal -> tela
 ├── lib/                    # módulos por domínio (bibliotecas PlatformIO)
 │   ├── ClawdCore/          #   domínio puro: estados, prioridade, SessionStore
-│   ├── ClawdConfig/        #   persistência do token em NVS
+│   ├── ClawdConfig/        #   config completo em NVS (redes, hosts, token, admin)
 │   ├── ClawdNet/           #   Wi-Fi + WebSocket + parser do protocolo v1
-│   └── ClawdDisplay/       #   TFT + decodificador de animação CRLI
+│   ├── ClawdPortal/        #   conexão por prioridade + portal captive + dashboard
+│   └── ClawdDisplay/       #   TFT + animação CRLI + tela de QR (InfoScreen)
 ├── data/                   # assets *.crli (imagem do LittleFS)
 ├── tools/
 │   └── build_assets.py     # gera data/*.crli a partir dos GIFs do clawd-on-desk
@@ -40,16 +41,38 @@ clawd-on-esp/
 Cada pasta em `lib/` é uma biblioteca independente com uma responsabilidade
 única; `main.cpp` apenas as compõe. `ClawdCore` não tem dependências de hardware.
 
-## Configuração
+## Primeira inicialização (provisionamento)
 
-Copie o modelo de credenciais e preencha (o arquivo real é ignorado pelo git):
+Setup é **zero-touch** — não precisa de `secrets.h`. No 1º boot sem rede
+configurada, o dispositivo:
+
+1. Sobe um Wi-Fi **`Clawd-Setup-XXXX`** (aberto). A tela alterna o mascote
+   "aguardando" com um **QR code** para entrar na rede + o IP do portal.
+2. No celular, o **portal captive** (UI temática) pede: rede Wi-Fi, host/porta/
+   token do clawd-on-desk e uma **senha de admin**.
+3. Salva e reinicia conectando à rede. A tela mostra um QR com a URL do painel.
+
+Depois disso, o **dashboard** em `http://<ip-do-dispositivo>/` (protegido pela
+senha de admin) permite gerenciar **múltiplas redes com prioridade** (casa/
+trabalho, sem reset), a **lista de hosts** do clawd-on-desk e o token.
+
+`CLAWD_HOST`/`PORT`/`TOKEN` vêm do desktop em **Settings -> Mobile pairing**.
+
+### secrets.h (opcional, só para dev)
+
+Se quiser pular o portal durante o desenvolvimento, um `include/secrets.h`
+(gitignored) com valores reais **semeia** a config no 1º boot:
 
 ```bash
 cp include/secrets.example.h include/secrets.h
 # edite WIFI_SSID, WIFI_PASSWORD e CLAWD_HOST/PORT/TOKEN
 ```
 
-`CLAWD_HOST`/`PORT`/`TOKEN` vêm do desktop em **Settings -> Mobile pairing**.
+Para forçar o provisionamento do zero (limpar a config em NVS):
+
+```bash
+pio run -e esp32-2432S028 -t erase
+```
 
 ## Assets
 

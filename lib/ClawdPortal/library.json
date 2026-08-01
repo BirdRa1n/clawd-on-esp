@@ -1,0 +1,11 @@
+{
+  "name": "ClawdPortal",
+  "version": "0.1.0",
+  "description": "Wi-Fi provisioning: priority-based connection, SoftAP captive setup portal and admin-protected dashboard (built-in WebServer + DNSServer).",
+  "keywords": "clawd, wifi, portal, provisioning",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": {
+    "ClawdConfig": "*"
+  }
+}
