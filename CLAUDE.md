@@ -84,6 +84,10 @@ python3 tools/build_assets.py <clawd-on-desk>/assets/gif ./data
   admin nunca em texto puro — só o hash SHA-256 (mbedTLS).
 - **Pipeline de frames:** extrair cada frame como cópia independente; NÃO usar
   `list(ImageSequence.Iterator(im))` (retorna refs ao mesmo objeto → frames iguais).
+- **Mascote pequeno?** O conteúdo real ocupa ~33% do canvas do GIF; o pipeline
+  recorta na **bounding box de conteúdo** (união das poses) antes de escalar.
+- **Protocolo:** o Mobile v1 **não** envia janela de contexto/quota — só
+  `state/title/basename/agentId/updatedAt/recentEvents`. A tela mostra o `title`.
 - **Partição:** `partitions.csv` custom (~1,31 MB app + ~2,62 MB LittleFS, sem OTA).
   Mudar a partição exige re-`uploadfs` e `upload`.
 - Não é preciso rodar `uploadfs` a cada `upload` — só quando `data/` muda.

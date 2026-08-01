@@ -9,7 +9,9 @@ static JsonDocument makeFilter() {
   f["sessionId"] = true;
   f["newToken"] = true;
   f["data"]["state"] = true;
+  f["data"]["title"] = true;
   f["sessions"]["*"]["state"] = true;
+  f["sessions"]["*"]["title"] = true;
   return f;
 }
 
@@ -105,7 +107,8 @@ void NetLink::handleText(uint8_t *payload, size_t length) {
     int n = 0;
     for (JsonPair kv : sessions) {
       ClawdState st = clawdParse(kv.value()["state"] | "idle");
-      if (onSession) onSession(String(kv.key().c_str()), st);
+      String title = kv.value()["title"] | "";
+      if (onSession) onSession(String(kv.key().c_str()), st, title);
       n++;
     }
     Serial.printf("[net] snapshot: %d sessions\n", n);
@@ -113,7 +116,8 @@ void NetLink::handleText(uint8_t *payload, size_t length) {
   } else if (!strcmp(type, "state")) {
     const char *sid = doc["sessionId"] | "";
     ClawdState st = clawdParse(doc["data"]["state"] | "idle");
-    if (sid[0] && onSession) onSession(String(sid), st);
+    String title = doc["data"]["title"] | "";
+    if (sid[0] && onSession) onSession(String(sid), st, title);
     Serial.printf("[net] state: %s -> %s\n", sid, clawdName(st));
 
   } else if (!strcmp(type, "session_deleted")) {
