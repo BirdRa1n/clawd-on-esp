@@ -61,25 +61,40 @@ static void applyBrightness(uint8_t pct) {
 }
 
 // ── Status bar (STA / running) ──────────────────────────────────────────────
+static String truncateToWidth(const String &s, int maxw) {
+  if (tft.textWidth(s) <= maxw) return s;
+  String out = s;
+  while (out.length() > 1 && tft.textWidth(out + "...") > maxw) out.remove(out.length() - 1);
+  return out + "...";
+}
+
 static void drawStatus() {
-  tft.fillRect(0, STATUS_Y, tft.width(), tft.height() - STATUS_Y, TFT_BLACK);
-  uint16_t dot; const char *txt;
-  switch (linkState) {
-    case Link::Connected:  dot = TFT_GREEN;  txt = "CONNECTED";  break;
-    case Link::AuthFailed: dot = TFT_RED;    txt = "AUTH FAIL";  break;
-    default:               dot = TFT_ORANGE; txt = "CONNECTING"; break;
-  }
-  tft.fillCircle(9, STATUS_Y + 11, 4, dot);
-  tft.setTextDatum(TL_DATUM);
-  tft.setTextColor(dot, TFT_BLACK);
-  tft.drawString(txt, 20, STATUS_Y + 4, 2);
+  const uint16_t BG = TFT_BLACK;
+  const uint16_t MUTED = tft.color565(0x8b, 0x8f, 0x9a);
+  tft.fillRect(0, STATUS_Y, tft.width(), tft.height() - STATUS_Y, BG);
+  tft.drawFastHLine(0, STATUS_Y, tft.width(), tft.color565(0x2a, 0x2e, 0x3a));
+
   ClawdState d = store.dominant();
-  tft.setTextDatum(TR_DATUM);
-  tft.setTextColor(clawdColor(d), TFT_BLACK);
-  tft.drawString(clawdName(d), tft.width() - 6, STATUS_Y + 4, 2);
-  tft.setTextDatum(TL_DATUM);
-  tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-  tft.drawString("s:" + String(store.size()) + "  " + WiFi.localIP().toString(), 6, STATUS_Y + 26, 1);
+
+  // connection dot
+  uint16_t dot = linkState == Link::Connected ? TFT_GREEN
+               : linkState == Link::AuthFailed ? TFT_RED : TFT_ORANGE;
+  tft.fillCircle(15, STATUS_Y + 23, 5, dot);
+
+  // state "pill"
+  int px = 32, py = STATUS_Y + 9, pw = tft.width() - px - 12, ph = 28;
+  tft.fillRoundRect(px, py, pw, ph, ph / 2, clawdColor(d));
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(d == ClawdState::Sleeping ? TFT_BLACK : TFT_WHITE);
+  tft.drawString(clawdName(d), px + pw / 2, py + ph / 2 + 1);
+
+  // current task title (real context the protocol provides); fallback to IP
+  String line = store.dominantTitle();
+  if (!line.length()) line = WiFi.localIP().toString();
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(MUTED, BG);
+  tft.drawString(truncateToWidth(line, tft.width() - 16), tft.width() / 2, STATUS_Y + 48);
 }
 
 // ── clawd-on-desk WebSocket link ────────────────────────────────────────────
@@ -93,7 +108,7 @@ static void connectActiveHost() {
 
 static void wireNet() {
   net.onSnapshotBegin = []() { store.clear(); statusDirty = true; };
-  net.onSession = [](const String &sid, ClawdState st) { store.upsert(sid, st); gotState = true; statusDirty = true; };
+  net.onSession = [](const String &sid, ClawdState st, const String &title) { store.upsert(sid, st, title); gotState = true; statusDirty = true; };
   net.onDeleted = [](const String &sid) { store.remove(sid); statusDirty = true; };
   net.onLink = [](bool up) {
     if (up) linkState = Link::Connected;

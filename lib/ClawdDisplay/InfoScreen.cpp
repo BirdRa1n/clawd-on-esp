@@ -15,7 +15,8 @@ void InfoScreen::show(TFT_eSPI &tft, const char *title, const char *qrData,
 
   tft.setTextDatum(TC_DATUM);
   tft.setTextColor(ACCENT, BG);
-  tft.drawString(title, tft.width() / 2, 10, 4);
+  tft.setFreeFont(&FreeSansBold12pt7b);
+  tft.drawString(title, tft.width() / 2, 12);
 
   // QR (version 3 = 29 modules, holds our short strings at ECC_LOW)
   QRCode qr;
@@ -32,11 +33,12 @@ void InfoScreen::show(TFT_eSPI &tft, const char *title, const char *qrData,
       if (qrcode_getModule(&qr, x, y))
         tft.fillRect(qx + x * scale, qy + y * scale, scale, scale, TFT_BLACK);
 
-  int ty = qy + qw + 18;
+  int ty = qy + qw + 20;
   tft.setTextDatum(TC_DATUM);
+  tft.setFreeFont(&FreeSans9pt7b);
   tft.setTextColor(TFT_WHITE, BG);
-  if (l1.length()) { tft.drawString(l1, tft.width() / 2, ty, 2); ty += 22; }
-  if (l2.length()) { tft.drawString(l2, tft.width() / 2, ty, 2); ty += 22; }
+  if (l1.length()) { tft.drawString(l1, tft.width() / 2, ty); ty += 24; }
+  if (l2.length()) { tft.drawString(l2, tft.width() / 2, ty); ty += 24; }
   tft.setTextColor(MUTED, BG);
-  if (l3.length()) { tft.drawString(l3, tft.width() / 2, ty, 2); }
+  if (l3.length()) { tft.drawString(l3, tft.width() / 2, ty); }
 }

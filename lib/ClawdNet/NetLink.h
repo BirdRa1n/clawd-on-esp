@@ -12,8 +12,8 @@
 class NetLink {
 public:
   // Callbacks (set before begin()):
-  std::function<void()> onSnapshotBegin;                       // clear the store
-  std::function<void(const String &, ClawdState)> onSession;   // upsert one session
+  std::function<void()> onSnapshotBegin;                                     // clear the store
+  std::function<void(const String &, ClawdState, const String &)> onSession; // upsert one session (sid, state, title)
   std::function<void(const String &)> onDeleted;               // remove one session
   std::function<void(bool)> onLink;                            // link up/down
   std::function<void(const String &)> onTokenRotate;           // persist new token
