@@ -133,7 +133,11 @@ bool WebPortal::requireAdmin() {
 }
 
 void WebPortal::routesDashboard() {
-  auto redirect = [this]() { _server.sendHeader("Location", "/", true); _server.send(303, "text/plain", ""); };
+  auto redirect = [this]() {
+    if (onConfigChanged) onConfigChanged();   // apply live (scale, brightness, host, token, ...)
+    _server.sendHeader("Location", "/", true);
+    _server.send(303, "text/plain", "");
+  };
 
   _server.on("/", [this]() {
     if (!requireAdmin()) return;
@@ -167,6 +171,15 @@ void WebPortal::routesDashboard() {
     p += "<h2>Token</h2><form method=POST action=/token>";
     p += "<input name=token placeholder='novo token' value=\"" + esc(c.token) + "\">";
     p += "<button class=sec>Salvar token</button></form>";
+
+    p += "<h2>Apar\xC3\xAancia</h2><form method=POST action=/display>";
+    p += "<label>Tamanho do mascote: <b id=sv>" + String(c.mascotScale) + "%</b></label>";
+    p += "<input type=range name=scale min=30 max=100 step=5 value=" + String(c.mascotScale) +
+         " oninput=\"sv.textContent=this.value+'%'\">";
+    p += "<label>Brilho da tela: <b id=bv>" + String(c.brightness) + "%</b></label>";
+    p += "<input type=range name=bri min=10 max=100 step=5 value=" + String(c.brightness) +
+         " oninput=\"bv.textContent=this.value+'%'\">";
+    p += "<button class=sec>Aplicar</button></form>";
 
     p += "<h2>Manuten\xC3\xA7\xC3\xA3o</h2><form method=POST action=/reboot><button>Reiniciar</button></form>";
     p += foot();
@@ -206,6 +219,14 @@ void WebPortal::routesDashboard() {
     if (!requireAdmin()) return;
     ClawdConfigData c = ConfigStore::load();
     c.token = _server.arg("token"); ConfigStore::save(c);
+    redirect();
+  });
+  _server.on("/display", HTTP_POST, [this, redirect]() {
+    if (!requireAdmin()) return;
+    ClawdConfigData c = ConfigStore::load();
+    int sc = _server.arg("scale").toInt(); if (sc >= 30 && sc <= 100) c.mascotScale = (uint8_t)sc;
+    int br = _server.arg("bri").toInt();   if (br >= 10 && br <= 100) c.brightness = (uint8_t)br;
+    ConfigStore::save(c);
     redirect();
   });
   _server.on("/admin", HTTP_POST, [this, redirect]() {

@@ -22,6 +22,8 @@ struct ClawdConfigData {
   String   token;                    // mobile pairing token (rotates at runtime)
   String   adminHash;                // SHA-256 hex of the admin password ("" = unset)
   bool     provisioned = false;      // true once the user completes setup
+  uint8_t  mascotScale = 100;        // mascot render size, percent (30..100)
+  uint8_t  brightness = 100;         // backlight brightness, percent (10..100)
 
   bool hasNetworks() const { return !networks.empty(); }
   bool hasAdmin() const { return adminHash.length() == 64; }

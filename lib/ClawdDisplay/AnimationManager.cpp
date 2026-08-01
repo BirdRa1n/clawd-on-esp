@@ -14,13 +14,15 @@ static const int ANIM_H = 238;   // status bar lives below this
 static File      cf;             // current animation file (kept open)
 static TFT_eSPI *gTft = nullptr;
 static uint16_t  palette[256];
-static uint16_t  lineBuf[256];   // one screen row (>= max width 240)
+static uint16_t  lineBuf[256];   // one decoded source row (width fW, <= 240)
+static uint16_t  outBuf[256];    // one scaled output row (width gDW)
+static uint16_t  xmap[256];      // output-x -> source-x (nearest-neighbour)
 static uint8_t  *runbuf = nullptr;
 static size_t    runbufCap = 0;
 static int       fW = 0, fH = 0, fFrames = 0, fPalN = 0, fMaxRuns = 0;
 static uint32_t  fDataStart = 0;
 static int       fFrameIdx = 0;
-static int       gXoff = 0, gYoff = 0;
+static int       gXoff = 0, gYoff = 0, gDW = 0, gDH = 0, gScale = 100;
 
 static bool readFully(File &f, uint8_t *b, size_t n) {
   size_t got = 0;
@@ -89,8 +91,13 @@ bool AnimationManager::openState(ClawdState s) {
     if (!runbuf) { Serial.println("[anim] runbuf alloc failed"); cf.close(); return false; }
   }
 
-  gXoff = (_tft->width() - fW) / 2; if (gXoff < 0) gXoff = 0;
-  gYoff = (ANIM_H - fH) / 2;         if (gYoff < 0) gYoff = 0;
+  gScale = _scale;
+  gDW = (int)fW * gScale / 100; if (gDW < 1) gDW = 1; if (gDW > fW) gDW = fW;
+  gDH = (int)fH * gScale / 100; if (gDH < 1) gDH = 1; if (gDH > fH) gDH = fH;
+  for (int ox = 0; ox < gDW; ox++) xmap[ox] = (uint16_t)((long)ox * fW / gDW);
+  gXoff = (_tft->width() - gDW) / 2; if (gXoff < 0) gXoff = 0;
+  gYoff = (ANIM_H - gDH) / 2;         if (gYoff < 0) gYoff = 0;
+  _tft->fillRect(0, 0, _tft->width(), ANIM_H, TFT_BLACK);  // clear so scaled frames leave no border remnants
   fFrameIdx = 0;
   _open = true;
   Serial.printf("[anim] %s: %dx%d %df pal%d maxRuns%d\n", path, fW, fH, fFrames, fPalN, fMaxRuns);
@@ -106,16 +113,25 @@ static int playFrame() {
   size_t rbytes = (size_t)runCount * 2;
   if (rbytes > runbufCap || !readFully(cf, runbuf, rbytes)) return delayMs > 0 ? delayMs : 100;
 
-  int col = 0, row = 0;
+  int col = 0, srcRow = 0, nextOut = 0;
   for (int i = 0; i < runCount; i++) {
     uint8_t cnt = runbuf[i * 2];
     uint16_t color = palette[runbuf[i * 2 + 1]];
     while (cnt--) {
       lineBuf[col++] = color;
-      if (col >= fW) {
-        gTft->pushImage(gXoff, gYoff + row, fW, 1, lineBuf);
+      if (col >= fW) {                         // one source row complete
+        if (gScale >= 100) {
+          gTft->pushImage(gXoff, gYoff + srcRow, fW, 1, lineBuf);
+        } else {
+          // emit every output row whose nearest source maps to this srcRow
+          while (nextOut < gDH && (int)((long)nextOut * fH / gDH) == srcRow) {
+            for (int ox = 0; ox < gDW; ox++) outBuf[ox] = lineBuf[xmap[ox]];
+            gTft->pushImage(gXoff, gYoff + nextOut, gDW, 1, outBuf);
+            nextOut++;
+          }
+        }
         col = 0;
-        if (++row >= fH) break;
+        srcRow++;
       }
     }
   }
@@ -133,6 +149,14 @@ void AnimationManager::setState(ClawdState s) {
     _open = false;
     drawFallback(s);
   }
+}
+
+void AnimationManager::setScale(uint8_t percent) {
+  if (percent < 30) percent = 30;
+  if (percent > 100) percent = 100;
+  if (percent == _scale) return;
+  _scale = percent;
+  if (_open && _assetsOk) openState(_current);   // recompute dims + repaint
 }
 
 void AnimationManager::loop() {

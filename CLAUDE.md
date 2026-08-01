@@ -50,7 +50,7 @@ ConfigStore::load() (NVS) → WiFiConnection.begin()
   cores) e `SessionStore.h` (mapa de sessões + estado dominante).
 - **`ClawdConfig`** — `Config.h` + `ConfigStore.{h,cpp}`: config completo em **NVS**
   como JSON (redes Wi-Fi com prioridade, hosts do clawd-on-desk, token, hash
-  SHA-256 da senha de admin). Sobrevive a `upload`/`uploadfs`.
+  SHA-256 da senha de admin, tamanho do mascote e brilho). Sobrevive a `upload`/`uploadfs`.
 - **`ClawdNet`** — `NetLink.{h,cpp}`: Wi-Fi + WebSocket (`links2004/WebSockets`) +
   parser do protocolo (`ArduinoJson`, com filtro). Depende de `ClawdCore`.
 - **`ClawdPortal`** — `WiFiConnection.{h,cpp}` (conexão por prioridade / SoftAP) e

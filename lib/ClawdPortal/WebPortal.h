@@ -4,6 +4,7 @@
 //  - Dashboard mode (STA): admin-protected page to manage networks, hosts and token.
 // Pages are embedded in the firmware (PROGMEM) so no filesystem upload is needed.
 #include <Arduino.h>
+#include <functional>
 #include <WebServer.h>
 #include <DNSServer.h>
 #include "Config.h"
@@ -14,6 +15,8 @@ public:
   void beginDashboard(const ClawdConfigData &cfg);  // STA dashboard
   void loop();
   bool rebootRequested() const { return _reboot; }
+
+  std::function<void()> onConfigChanged;          // fired after a dashboard save
 
 private:
   void routesSetup();
