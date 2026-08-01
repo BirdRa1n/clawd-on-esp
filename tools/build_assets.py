@@ -72,8 +72,16 @@ def build_state(src_gif, out_path, width, max_frames, colors):
     w, h = im.size
     th = max(1, round(h * width / w))
 
-    all_frames = list(ImageSequence.Iterator(im))
-    n = len(all_frames)
+    # Extract every frame as an INDEPENDENT copy with its duration.
+    # NOTE: list(ImageSequence.Iterator(im)) yields references to the same mutating
+    # image object (every entry ends up identical). Converting/copying per iteration
+    # is what makes the frames distinct.
+    rgba_all, dur_all = [], []
+    for f in ImageSequence.Iterator(im):
+        rgba_all.append(f.convert("RGBA").copy())
+        dur_all.append(max(20, f.info.get("duration", 100)))  # floor 20 ms
+    n = len(rgba_all)
+
     # Keep every frame by default; only sub-sample if a positive cap < n is given.
     if max_frames and 0 < max_frames < n:
         k = max_frames
@@ -81,12 +89,11 @@ def build_state(src_gif, out_path, width, max_frames, colors):
     else:
         k = n
         sample = list(range(n))
-    # Preserve each frame's own duration for faithful playback (floor 20 ms).
-    delays = [max(20, all_frames[i].info.get("duration", 100)) for i in sample]
+    delays = [dur_all[i] for i in sample]
 
     rgb_frames = []
     for idx in sample:
-        frame = all_frames[idx].convert("RGBA")
+        frame = rgba_all[idx]
         bg = Image.new("RGBA", frame.size, BACKGROUND + (255,))
         rgb_frames.append(
             Image.alpha_composite(bg, frame).convert("RGB").resize((width, th), Image.LANCZOS)
