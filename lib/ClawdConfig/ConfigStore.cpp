@@ -37,6 +37,8 @@ ClawdConfigData ConfigStore::load() {
       c.token       = d["token"].as<String>();
       c.adminHash   = d["admin"].as<String>();
       c.provisioned = d["prov"] | false;
+      c.mascotScale = d["scale"] | 100;
+      c.brightness  = d["bri"] | 100;
     }
   }
   // Migrate a token written by the older single-key scheme.
@@ -63,6 +65,8 @@ bool ConfigStore::save(const ClawdConfigData &c) {
   d["token"]  = c.token;
   d["admin"]  = c.adminHash;
   d["prov"]   = c.provisioned;
+  d["scale"]  = c.mascotScale;
+  d["bri"]    = c.brightness;
 
   String js;
   serializeJson(d, js);

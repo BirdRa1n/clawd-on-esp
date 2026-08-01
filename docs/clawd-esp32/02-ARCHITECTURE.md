@@ -427,7 +427,8 @@ PROGMEM):**
 - **Setup (AP):** formulário (rede, host/porta/token, senha de admin) → salva → reboot.
 - **Dashboard (STA):** protegido por **HTTP Basic** contra o hash de admin; permite
   gerenciar múltiplas redes com prioridade (casa/trabalho sem reset), a lista de
-  hosts do clawd-on-desk (failover se o IP muda) e o token.
+  hosts do clawd-on-desk (failover se o IP muda), o token e a **aparência**
+  (tamanho do mascote e brilho, aplicados ao vivo via `onConfigChanged`).
 
 **Tela (`lib/ClawdDisplay/InfoScreen`):** QR (via `ricmoo/QRCode`) + texto, tema
 Clawd. QR de join Wi-Fi no AP; QR da URL do painel no STA.

@@ -54,7 +54,8 @@ configurada, o dispositivo:
 
 Depois disso, o **dashboard** em `http://<ip-do-dispositivo>/` (protegido pela
 senha de admin) permite gerenciar **múltiplas redes com prioridade** (casa/
-trabalho, sem reset), a **lista de hosts** do clawd-on-desk e o token.
+trabalho, sem reset), a **lista de hosts** do clawd-on-desk, o token e a
+**aparência** (tamanho do mascote e brilho da tela, aplicados ao vivo).
 
 `CLAWD_HOST`/`PORT`/`TOKEN` vêm do desktop em **Settings -> Mobile pairing**.
 

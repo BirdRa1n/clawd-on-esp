@@ -52,6 +52,13 @@ uint32_t runningStart = 0;
 uint32_t lastConnCheck = 0;
 
 static const int STATUS_Y = 238;
+static const int BL_CHANNEL = 0;   // LEDC channel for backlight PWM
+
+static void applyBrightness(uint8_t pct) {
+  if (pct < 10) pct = 10;
+  if (pct > 100) pct = 100;
+  ledcWrite(BL_CHANNEL, map(pct, 0, 100, 0, 255));
+}
 
 // ── Status bar (STA / running) ──────────────────────────────────────────────
 static void drawStatus() {
@@ -122,6 +129,14 @@ static void enterProvisioning() {
 static void enterRunning() {
   app = App::Running;
   cfg = ConfigStore::load();
+  anim.setScale(cfg.mascotScale);
+  applyBrightness(cfg.brightness);
+  portal.onConfigChanged = []() {          // apply dashboard changes live
+    cfg = ConfigStore::load();
+    anim.setScale(cfg.mascotScale);
+    applyBrightness(cfg.brightness);
+    net.useToken(cfg.token);               // no-op unless the token changed
+  };
   portal.beginDashboard(cfg);
   wireNet();
   connectActiveHost();
@@ -137,8 +152,9 @@ void setup() {
   Serial.println("\n\n=== clawd-on-esp ===");
 
 #ifdef TFT_BL
-  pinMode(TFT_BL, OUTPUT);
-  digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
+  ledcSetup(BL_CHANNEL, 5000, 8);          // PWM backlight for brightness control
+  ledcAttachPin(TFT_BL, BL_CHANNEL);
+  applyBrightness(100);
 #endif
   tft.init();
   tft.setRotation(0);
@@ -154,6 +170,8 @@ void setup() {
 
   cfg = ConfigStore::load();
   if (!cfg.hasNetworks()) seedFromSecrets();
+  anim.setScale(cfg.mascotScale);
+  applyBrightness(cfg.brightness);
 
   wifi.onAP = enterProvisioning;
   wifi.onStation = enterRunning;
