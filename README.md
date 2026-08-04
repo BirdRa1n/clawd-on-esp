@@ -19,8 +19,9 @@ mascote correspondente ao estado dominante.
 
 ```
 clawd-on-esp/
-├── platformio.ini          # ambientes, flags do TFT_eSPI, libs
-├── partitions.csv          # ~1,31 MB app + ~2,62 MB LittleFS (assets), sem OTA
+├── platformio.ini          # ambientes (padrão e -ota), flags do TFT_eSPI, libs
+├── partitions.csv          # padrão: ~1,31 MB app + ~2,62 MB LittleFS (assets)
+├── partitions_ota.csv      # -ota: 2 slots de app (OTA); assets vão para o SD
 ├── include/
 │   ├── secrets.example.h   # modelo de credenciais (versionado)
 │   └── secrets.h           # seed opcional de dev (gitignored)
@@ -29,10 +30,11 @@ clawd-on-esp/
 ├── lib/                    # módulos por domínio (bibliotecas PlatformIO)
 │   ├── ClawdCore/          #   domínio puro: estados, prioridade, SessionStore
 │   ├── ClawdConfig/        #   config completo em NVS (redes, hosts, token, admin)
+│   ├── ClawdConsole/       #   espelha o Serial num ring buffer (terminal do painel)
 │   ├── ClawdNet/           #   Wi-Fi + WebSocket + parser do protocolo v1
-│   ├── ClawdPortal/        #   conexão por prioridade + portal captive + dashboard
-│   └── ClawdDisplay/       #   TFT + animação CRLI + tela de QR (InfoScreen)
-├── data/                   # assets *.crli (imagem do LittleFS)
+│   ├── ClawdPortal/        #   conexão por prioridade + portal captive + dashboard/OTA/SD
+│   └── ClawdDisplay/       #   TFT + animação CRLI (LittleFS ou SD) + QR (InfoScreen)
+├── data/                   # assets *.crli (LittleFS no build padrão)
 ├── tools/
 │   └── build_assets.py     # gera data/*.crli a partir dos GIFs do clawd-on-desk
 └── docs/clawd-esp32/       # documento de protocolo e de arquitetura
@@ -52,10 +54,13 @@ configurada, o dispositivo:
    token do clawd-on-desk e uma **senha de admin**.
 3. Salva e reinicia conectando à rede. A tela mostra um QR com a URL do painel.
 
-Depois disso, o **dashboard** em `http://<ip-do-dispositivo>/` (protegido pela
-senha de admin) permite gerenciar **múltiplas redes com prioridade** (casa/
-trabalho, sem reset), a **lista de hosts** do clawd-on-desk, o token e a
-**aparência** (tamanho do mascote e brilho da tela, aplicados ao vivo).
+Depois disso, o **dashboard** em `http://<ip-do-dispositivo>/` (responsivo, tema
+claro/escuro automático, protegido pela senha de admin) permite gerenciar
+**múltiplas redes com prioridade** (casa/trabalho, sem reset), a **lista de hosts**
+do clawd-on-desk, o token e a **aparência** (tamanho do mascote e brilho, ao vivo).
+Tem ainda **telemetria** (heap, temperatura, uptime, loop/s) e um **terminal serial
+ao vivo** no canto. No build `-ota` aparecem também **Atualização** (upload de
+firmware OTA) e **Armazenamento** (gerenciar o cartão SD e sincronizar os assets).
 
 `CLAWD_HOST`/`PORT`/`TOKEN` vêm do desktop em **Settings -> Mobile pairing**.
 
@@ -87,6 +92,8 @@ python3 tools/build_assets.py <caminho>/clawd-on-desk/assets/gif ./data
 
 ## Build & flash
 
+**Padrão** (assets em LittleFS, sem OTA de firmware):
+
 ```bash
 pio run -e esp32-2432S028 -t uploadfs   # grava os assets (LittleFS)
 pio run -e esp32-2432S028 -t upload     # grava o firmware
@@ -94,3 +101,15 @@ pio device monitor                      # 115200 baud
 ```
 
 `uploadfs` só precisa rodar quando os arquivos de `data/` mudam.
+
+**Com OTA de firmware** (assets no cartão SD): na flash de 4 MB, dois slots de app
+para OTA não deixam espaço para os ~2 MB de assets, então eles vão para o **SD**.
+
+```bash
+pio run -e esp32-2432S028-ota -t erase   # troca a partição (só ao mudar de modo)
+pio run -e esp32-2432S028-ota -t upload
+```
+
+Depois, no dashboard: **Armazenamento → Sincronizar assets** baixa os `.crli` deste
+repositório (`data/`) para o cartão; o dispositivo reinicia e passa a ler do SD.
+A partir daí o firmware é atualizado pela aba **Atualização** (upload do `.bin`).

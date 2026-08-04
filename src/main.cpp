@@ -27,6 +27,15 @@
 #include "WiFiConnection.h"
 #include "WebPortal.h"
 #include "InfoScreen.h"
+#include "Console.h"
+
+#ifdef CLAWD_ENABLE_OTA
+  #include <SPI.h>
+  #include <SD.h>
+  static SPIClass sdSPI(VSPI);
+#else
+  #include <LittleFS.h>
+#endif
 
 // ── Globals ─────────────────────────────────────────────────────────────────
 TFT_eSPI         tft = TFT_eSPI();
@@ -51,6 +60,20 @@ bool     gotState = false;
 uint32_t runningStart = 0;
 uint32_t lastConnCheck = 0;
 
+static const char *FW_VERSION = "0.6.0";
+volatile uint32_t g_loopHz = 0;      // main-loop iterations/sec (spare-capacity proxy)
+
+static String jsonEsc(const String &s) {
+  String o;
+  for (size_t i = 0; i < s.length(); i++) {
+    char c = s[i];
+    if (c == '"' || c == '\\') { o += '\\'; o += c; }
+    else if (c == '\n') o += ' ';
+    else if ((uint8_t)c >= 0x20) o += c;
+  }
+  return o;
+}
+
 static const int STATUS_Y = 238;
 static const int BL_CHANNEL = 0;   // LEDC channel for backlight PWM
 
@@ -58,6 +81,21 @@ static void applyBrightness(uint8_t pct) {
   if (pct < 10) pct = 10;
   if (pct > 100) pct = 100;
   ledcWrite(BL_CHANNEL, map(pct, 0, 100, 0, 255));
+}
+
+// Mounts the asset filesystem: SD card in OTA builds (flash is full of app
+// slots), LittleFS otherwise. Returns null if nothing is mounted.
+static fs::FS *mountAssetFs() {
+#ifdef CLAWD_ENABLE_OTA
+  sdSPI.begin(18, 19, 23, 5);            // CYD microSD on VSPI: SCK18 MISO19 MOSI23 CS5
+  if (SD.begin(5, sdSPI)) { console.log("[sd] mounted"); return &SD; }
+  console.log("[sd] mount failed (no card?)");
+  return nullptr;
+#else
+  if (LittleFS.begin(false)) return &LittleFS;
+  console.log("[anim] LittleFS mount failed (run 'uploadfs'?)");
+  return nullptr;
+#endif
 }
 
 // ── Status bar (STA / running) ──────────────────────────────────────────────
@@ -99,10 +137,10 @@ static void drawStatus() {
 
 // ── clawd-on-desk WebSocket link ────────────────────────────────────────────
 static void connectActiveHost() {
-  if (cfg.hosts.empty()) { Serial.println("[net] no host configured"); return; }
+  if (cfg.hosts.empty()) { console.log("[net] no host configured"); return; }
   if (cfg.activeHost < 0 || cfg.activeHost >= (int)cfg.hosts.size()) cfg.activeHost = 0;
   ClawdHost &h = cfg.hosts[cfg.activeHost];
-  Serial.printf("[net] using host %s:%u\n", h.host.c_str(), h.port);
+  console.logf("[net] using host %s:%u\n", h.host.c_str(), h.port);
   net.begin(h.host, h.port, cfg.token);
 }
 
@@ -129,7 +167,7 @@ static void seedFromSecrets() {
     cfg.token = CLAWD_TOKEN;
     cfg.provisioned = true;
     ConfigStore::save(cfg);
-    Serial.println("[cfg] seeded from secrets.h");
+    console.log("[cfg] seeded from secrets.h");
   }
 #endif
 }
@@ -138,7 +176,7 @@ static void seedFromSecrets() {
 static void enterProvisioning() {
   app = App::Provisioning;
   portal.beginSetup();
-  Serial.println("[app] provisioning (AP + captive portal)");
+  console.log("[app] provisioning (AP + captive portal)");
 }
 
 static void enterRunning() {
@@ -152,19 +190,38 @@ static void enterRunning() {
     applyBrightness(cfg.brightness);
     net.useToken(cfg.token);               // no-op unless the token changed
   };
+  portal.statusProvider = []() -> String { // live status + telemetry for /api/state
+    String s = "{";
+    s += "\"state\":\"";      s += clawdName(store.dominant());            s += "\",";
+    s += "\"title\":\"";      s += jsonEsc(store.dominantTitle());          s += "\",";
+    s += "\"link\":\"";       s += (linkState == Link::Connected ? "up" : linkState == Link::AuthFailed ? "auth" : "down"); s += "\",";
+    s += "\"sessions\":";     s += store.size();                            s += ",";
+    s += "\"ip\":\"";         s += WiFi.localIP().toString();               s += "\",";
+    s += "\"rssi\":";         s += WiFi.RSSI();                             s += ",";
+    s += "\"heap\":";         s += ESP.getFreeHeap() / 1024;                s += ",";
+    s += "\"heapTotal\":";    s += ESP.getHeapSize() / 1024;                s += ",";
+    s += "\"up\":";           s += millis() / 1000;                         s += ",";
+    s += "\"temp\":";         s += String(temperatureRead(), 1);            s += ",";
+    s += "\"flashUsed\":";    s += ESP.getSketchSize() / 1024;              s += ",";
+    s += "\"flashTotal\":";   s += (ESP.getSketchSize() + ESP.getFreeSketchSpace()) / 1024; s += ",";
+    s += "\"loop\":";         s += (uint32_t)g_loopHz;                      s += ",";
+    s += "\"fw\":\"";         s += FW_VERSION;                              s += "\"";
+    s += "}";
+    return s;
+  };
   portal.beginDashboard(cfg);
   wireNet();
   connectActiveHost();
   runningStart = millis();
   showInfo = true; infoDrawn = false; gotState = false;
-  Serial.println("[app] running (STA + dashboard)");
+  console.log("[app] running (STA + dashboard)");
 }
 
 // ── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
-  Serial.begin(115200);
+  console.begin(115200);
   delay(300);
-  Serial.println("\n\n=== clawd-on-esp ===");
+  console.log("=== clawd-on-esp ===");
 
 #ifdef TFT_BL
   ledcSetup(BL_CHANNEL, 5000, 8);          // PWM backlight for brightness control
@@ -175,7 +232,7 @@ void setup() {
   tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
 
-  anim.begin(&tft);
+  anim.begin(&tft, mountAssetFs());
 
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_ORANGE, TFT_BLACK);
@@ -216,6 +273,10 @@ static void provisioningTick() {
 
 // ── Loop ────────────────────────────────────────────────────────────────────
 void loop() {
+  static uint32_t loopCount = 0, loopWin = 0;
+  loopCount++;
+  if (millis() - loopWin >= 1000) { g_loopHz = loopCount; loopCount = 0; loopWin = millis(); }
+
   wifi.loop();
   portal.loop();
   if (portal.rebootRequested()) { delay(400); ESP.restart(); }
@@ -230,7 +291,7 @@ void loop() {
     if (millis() - lastConnCheck > 20000) {
       lastConnCheck = millis();
       cfg.activeHost = (cfg.activeHost + 1) % cfg.hosts.size();
-      Serial.printf("[net] failover -> host %d\n", cfg.activeHost);
+      console.logf("[net] failover -> host %d\n", cfg.activeHost);
       connectActiveHost();
     }
   } else if (net.isConnected()) {

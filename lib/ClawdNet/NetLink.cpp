@@ -1,4 +1,5 @@
 #include "NetLink.h"
+#include "Console.h"
 #include <ArduinoJson.h>
 
 // Filter so we only materialise the fields we care about (state drives the UI).
@@ -33,7 +34,7 @@ void NetLink::openSocket() {
   _path = "/ws?token=" + _token;
   _hadConnected = false;
   _gotData = false;
-  Serial.printf("[net] connecting ws://%s:%u/ws\n", _host.c_str(), _port);
+  console.logf("[net] connecting ws://%s:%u/ws\n", _host.c_str(), _port);
   _ws.begin(_host.c_str(), _port, _path.c_str());
   // Sane reconnect interval — the library drives reconnection itself using the
   // URL from begin(). (Do NOT set a huge value: the loop() throttle compares
@@ -54,19 +55,19 @@ void NetLink::onEvent(WStype_t type, uint8_t *payload, size_t length) {
       _hadConnected = true;
       _connectAt = millis();
       _gotData = false;
-      Serial.println("[net] connected");
+      console.log("[net] connected");
       if (onLink) onLink(true);
       break;
 
     case WStype_DISCONNECTED: {
       bool was = _connected;
       _connected = false;
-      if (was) Serial.println("[net] disconnected");
+      if (was) console.log("[net] disconnected");
       if (onLink) onLink(false);
       // Heuristic auth check: server accepts the upgrade then closes 1008 fast.
       if (_hadConnected && !_gotData && millis() - _connectAt < AUTH_FAST_MS) {
         if (++_authFailStreak >= 3) {
-          Serial.println("[net] auth suspected (fast close, no data)");
+          console.log("[net] auth suspected (fast close, no data)");
           if (onAuthSuspected) onAuthSuspected();
           _authFailStreak = 0;
         }
@@ -81,7 +82,7 @@ void NetLink::onEvent(WStype_t type, uint8_t *payload, size_t length) {
       break;
 
     case WStype_ERROR:
-      Serial.println("[net] ws error");
+      console.log("[net] ws error");
       break;
 
     default:
@@ -95,7 +96,7 @@ void NetLink::handleText(uint8_t *payload, size_t length) {
   DeserializationError err =
       deserializeJson(doc, payload, length, DeserializationOption::Filter(filter));
   if (err) {
-    Serial.printf("[net] json err: %s\n", err.c_str());
+    console.logf("[net] json err: %s\n", err.c_str());
     return;
   }
 
@@ -111,19 +112,19 @@ void NetLink::handleText(uint8_t *payload, size_t length) {
       if (onSession) onSession(String(kv.key().c_str()), st, title);
       n++;
     }
-    Serial.printf("[net] snapshot: %d sessions\n", n);
+    console.logf("[net] snapshot: %d sessions\n", n);
 
   } else if (!strcmp(type, "state")) {
     const char *sid = doc["sessionId"] | "";
     ClawdState st = clawdParse(doc["data"]["state"] | "idle");
     String title = doc["data"]["title"] | "";
     if (sid[0] && onSession) onSession(String(sid), st, title);
-    Serial.printf("[net] state: %s -> %s\n", sid, clawdName(st));
+    console.logf("[net] state: %s -> %s\n", sid, clawdName(st));
 
   } else if (!strcmp(type, "session_deleted")) {
     const char *sid = doc["sessionId"] | "";
     if (sid[0] && onDeleted) onDeleted(String(sid));
-    Serial.printf("[net] session_deleted: %s\n", sid);
+    console.logf("[net] session_deleted: %s\n", sid);
 
   } else if (!strcmp(type, "token_rotate")) {
     const char *nt = doc["newToken"] | "";
@@ -132,7 +133,7 @@ void NetLink::handleText(uint8_t *payload, size_t length) {
       _ws.sendTXT(ack);   // ack per protocol
       useToken(String(nt));
       if (onTokenRotate) onTokenRotate(String(nt));
-      Serial.println("[net] token rotated + acked");
+      console.log("[net] token rotated + acked");
     }
   }
 }

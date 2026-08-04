@@ -3,12 +3,13 @@
 // GIFs are decoded straight from LittleFS (file-mode) so RAM stays tiny
 // regardless of file size. See docs/clawd-esp32/02-ARCHITECTURE.md §3/§5.
 #include <Arduino.h>
+#include <FS.h>
 #include <TFT_eSPI.h>
 #include "ClawdState.h"
 
 class AnimationManager {
 public:
-  bool begin(TFT_eSPI *tft);          // mounts LittleFS, inits decoder
+  bool begin(TFT_eSPI *tft, fs::FS *assetFs);  // assets come from LittleFS or SD
   void setState(ClawdState s);        // switch animation when the state changes
   void setScale(uint8_t percent);     // mascot render size (30..100); re-opens current
   void loop();                        // advance a frame when its delay elapses

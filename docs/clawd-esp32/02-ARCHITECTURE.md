@@ -439,3 +439,32 @@ para reprovisionar do zero.
 
 **Prioridades técnicas confirmadas:** páginas embutidas no firmware (funcionam sem
 `uploadfs`); AP aberto (o QR já facilita o join); web stack nativo (sem AsyncTCP).
+
+---
+
+## 14. Dashboard v2, telemetria, OTA e assets no SD ✅ IMPLEMENTADO
+
+**Dashboard SPA (`lib/ClawdPortal/WebPortal`):** página única em PROGMEM, responsiva,
+**tema claro/escuro automático** (`prefers-color-scheme`; terminal sempre escuro).
+Renderiza a partir de uma API JSON:
+- `GET /api/state` → `{config, status, info}` (redes/hosts/token/aparência + estado +
+  telemetria + flags do build). `main` injeta o `status` via `portal.statusProvider`.
+- `GET /api/log?since=N` → linhas novas do ring buffer (`ClawdConsole`) para o terminal.
+- `POST /api/{net,host,token,display,admin,reboot,reset}` → mutações (auth Basic).
+
+**Telemetria:** heap, temperatura (`temperatureRead()`), uptime, flash e **loops/s**
+(proxy honesto — "CPU %" real exigiria stats do FreeRTOS). Sparkline de heap no canvas.
+
+**Terminal serial ao vivo:** `ClawdConsole` (`console.logf/log`) espelha o `Serial`
+num ring buffer de ~48 linhas; o dashboard faz polling de `/api/log`.
+
+**OTA de firmware (build `-ota`):** `POST /update` (lib `Update`) grava no slot de app
+livre e reinicia. Exige `partitions_ota.csv` (2 slots de app) — por isso é um **modo
+de build** (`-D CLAWD_ENABLE_OTA`), não o padrão.
+
+**Assets no SD (build `-ota`):** com 2 slots de app na flash de 4 MB não há espaço p/
+os ~2 MB de assets, então eles vão para o **cartão SD** (VSPI: CS 5, MOSI 23, MISO 19,
+SCK 18). O `AnimationManager` lê de um `fs::FS` genérico (LittleFS **ou** SD). O
+dashboard (aba Armazenamento) lista/apaga arquivos e **sincroniza os `.crli` do
+GitHub** (`raw.githubusercontent.com/.../data/`) via `HTTPClient`+`WiFiClientSecure`,
+reiniciando ao final. No build padrão os assets seguem em LittleFS (`uploadfs`).

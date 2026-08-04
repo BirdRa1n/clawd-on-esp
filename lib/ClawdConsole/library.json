@@ -1,0 +1,8 @@
+{
+  "name": "ClawdConsole",
+  "version": "0.1.0",
+  "description": "Mirrors Serial output into a ring buffer so the dashboard terminal can stream device logs.",
+  "keywords": "clawd, log, serial, console",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}

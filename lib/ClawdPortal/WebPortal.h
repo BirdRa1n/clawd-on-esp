@@ -17,15 +17,18 @@ public:
   bool rebootRequested() const { return _reboot; }
 
   std::function<void()> onConfigChanged;          // fired after a dashboard save
+  std::function<String()> statusProvider;         // returns live status+telemetry JSON object
 
 private:
   void routesSetup();
   void routesDashboard();
-  bool requireAdmin();                            // HTTP Basic vs cfg.adminHash
+  bool authed();                                  // HTTP Basic vs cfg.adminHash (no response)
+  bool requireAdmin();                            // authed() else send 401
 
   WebServer       _server{80};
   DNSServer       _dns;
   ClawdConfigData _cfg;
   bool            _isSetup = false;
   bool            _reboot = false;
+  bool            _otaAuth = false;   // OTA upload authorised this request
 };
