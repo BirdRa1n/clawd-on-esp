@@ -1,4 +1,5 @@
 #include "WiFiConnection.h"
+#include "Console.h"
 #include <WiFi.h>
 
 static String macSuffix() {
@@ -15,7 +16,7 @@ void WiFiConnection::begin(const ClawdConfigData &cfg) {
   WiFi.setSleep(false);
   if (_cfg.hasNetworks() && tryConnectByPriority()) {
     _mode = Mode::Station;
-    Serial.printf("[wifi] STA connected: %s\n", WiFi.localIP().toString().c_str());
+    console.logf("[wifi] STA connected: %s\n", WiFi.localIP().toString().c_str());
     if (onStation) onStation();
   } else {
     startAP();
@@ -44,7 +45,7 @@ bool WiFiConnection::tryConnectByPriority() {
   if (bestIdx < 0) return false;
 
   const WiFiNet &net = _cfg.networks[bestIdx];
-  Serial.printf("[wifi] connecting to '%s' (prio %d)\n", net.ssid.c_str(), net.priority);
+  console.logf("[wifi] connecting to '%s' (prio %d)\n", net.ssid.c_str(), net.priority);
   WiFi.begin(net.ssid.c_str(), net.pass.c_str());
   uint32_t start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) delay(200);
@@ -56,7 +57,7 @@ void WiFiConnection::startAP() {
   _apSsid = "Clawd-Setup-" + macSuffix();
   WiFi.softAP(_apSsid.c_str());   // open network
   _mode = Mode::AccessPoint;
-  Serial.printf("[wifi] AP mode: %s  http://%s\n", _apSsid.c_str(), WiFi.softAPIP().toString().c_str());
+  console.logf("[wifi] AP mode: %s  http://%s\n", _apSsid.c_str(), WiFi.softAPIP().toString().c_str());
   if (onAP) onAP();
 }
 
@@ -70,7 +71,7 @@ void WiFiConnection::loop() {
   if (_mode == Mode::Station && WiFi.status() != WL_CONNECTED) {
     if (millis() - _lastReconnect > 10000) {
       _lastReconnect = millis();
-      Serial.println("[wifi] STA lost, reconnecting...");
+      console.log("[wifi] STA lost, reconnecting...");
       WiFi.reconnect();
     }
   }

@@ -30,6 +30,12 @@ pio run -e esp32-2432S028 -t erase        # apaga a flash (força provisionament
 
 `esp32-2432S028` é o ambiente-alvo (`default_envs`). `esp32dev` é só um placeholder.
 
+**Dois modos (parâmetro no PlatformIO):** `esp32-2432S028` (padrão) grava os assets
+em LittleFS (`uploadfs`), **sem** OTA. `esp32-2432S028-ota` (`-D CLAWD_ENABLE_OTA`,
+`partitions_ota.csv`) habilita **OTA de firmware** (2 slots de app) e move os assets
+para o **cartão SD** — baixados do GitHub pelo dashboard (Armazenamento → Sincronizar).
+Trocar de modo muda a partição: rode `-t erase` antes.
+
 `include/secrets.h` é **opcional** (gitignored). Se presente com valores reais,
 ele apenas **semeia** a config no 1º boot (conveniência de dev). Sem ele, a
 configuração é feita pelo portal. Nunca commitar `secrets.h`.
@@ -51,13 +57,19 @@ ConfigStore::load() (NVS) → WiFiConnection.begin()
 - **`ClawdConfig`** — `Config.h` + `ConfigStore.{h,cpp}`: config completo em **NVS**
   como JSON (redes Wi-Fi com prioridade, hosts do clawd-on-desk, token, hash
   SHA-256 da senha de admin, tamanho do mascote e brilho). Sobrevive a `upload`/`uploadfs`.
+- **`ClawdConsole`** — `Console.{h,cpp}`: espelha o `Serial` num ring buffer.
+  Use `console.logf()/log()` no lugar de `Serial.printf()/println()` (o terminal do
+  dashboard lê via `/api/log`).
 - **`ClawdNet`** — `NetLink.{h,cpp}`: Wi-Fi + WebSocket (`links2004/WebSockets`) +
   parser do protocolo (`ArduinoJson`, com filtro). Depende de `ClawdCore`.
 - **`ClawdPortal`** — `WiFiConnection.{h,cpp}` (conexão por prioridade / SoftAP) e
-  `WebPortal.{h,cpp}` (portal captive + dashboard, HTML embutido, auth admin via
-  Basic + hash). Usa `WebServer`+`DNSServer` nativos. Depende de `ClawdConfig`.
-- **`ClawdDisplay`** — `AnimationManager.{h,cpp}` (TFT + decodificador **CRLI**) e
-  `InfoScreen.{h,cpp}` (tela de QR + texto, `ricmoo/QRCode`). Depende de `ClawdCore`.
+  `WebPortal.{h,cpp}` (portal captive + **dashboard SPA** responsivo com tema
+  claro/escuro automático, telemetria + terminal serial ao vivo, API JSON `/api/*`,
+  OTA e gerenciamento do SD; HTML em PROGMEM, auth admin via Basic + hash SHA-256).
+  Usa `WebServer`+`DNSServer` nativos. `main` injeta `statusProvider` (telemetria).
+- **`ClawdDisplay`** — `AnimationManager.{h,cpp}` (TFT + decodificador **CRLI**, lê
+  os assets de um `fs::FS` — LittleFS ou SD) e `InfoScreen.{h,cpp}` (QR + texto,
+  `ricmoo/QRCode`). Depende de `ClawdCore`.
 - **`src/main.cpp`** — composition root: liga config → conexão → portal → tela.
   Não colocar lógica de domínio aqui.
 
@@ -65,8 +77,10 @@ ConfigStore::load() (NVS) → WiFiConnection.begin()
 
 Animações são geradas por [`tools/build_assets.py`](tools/build_assets.py) (Pillow)
 a partir dos GIFs do clawd-on-desk, no formato **CRLI** (paleta indexada + RLE de
-índices RGB565, com `delayMs` por frame). Decodificado por streaming do LittleFS
-em `AnimationManager.cpp` (sem lib de GIF). Regenerar (todos os frames):
+índices RGB565, com `delayMs` por frame). Decodificado por streaming de um `fs::FS`
+(LittleFS no build padrão, SD no build `-ota`) em `AnimationManager.cpp` (sem lib de
+GIF). No build padrão vão em `data/` (`uploadfs`); no `-ota`, sincronizados do GitHub
+para o SD pelo dashboard. Regenerar (todos os frames):
 
 ```bash
 python3 tools/build_assets.py <clawd-on-desk>/assets/gif ./data
@@ -88,9 +102,13 @@ python3 tools/build_assets.py <clawd-on-desk>/assets/gif ./data
   recorta na **bounding box de conteúdo** (união das poses) antes de escalar.
 - **Protocolo:** o Mobile v1 **não** envia janela de contexto/quota — só
   `state/title/basename/agentId/updatedAt/recentEvents`. A tela mostra o `title`.
-- **Partição:** `partitions.csv` custom (~1,31 MB app + ~2,62 MB LittleFS, sem OTA).
-  Mudar a partição exige re-`uploadfs` e `upload`.
-- Não é preciso rodar `uploadfs` a cada `upload` — só quando `data/` muda.
+- **Partição:** `partitions.csv` (~1,31 MB app + ~2,62 MB LittleFS, sem OTA) no build
+  padrão; `partitions_ota.csv` (2 slots de app, sem LittleFS grande) no build `-ota`.
+- **OTA na flash de 4 MB:** 2 slots de app não deixam espaço p/ os 2 MB de assets →
+  no build `-ota` os assets ficam no **SD** (sync do GitHub pelo dashboard). Sem OTA,
+  ficam em LittleFS (`uploadfs`). Não rodar `uploadfs` a cada `upload` — só quando `data/` muda.
+- **Telemetria:** "CPU %" real não existe no Arduino-ESP32 sem stats do FreeRTOS;
+  reportamos loops/s (proxy honesto) + heap/temp/uptime/flash.
 
 ## Estilo
 
