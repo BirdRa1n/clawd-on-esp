@@ -69,9 +69,11 @@ bool AnimationManager::openState(ClawdState s) {
   cf = gFs->open(path, "r");
   if (!cf) { console.logf("[anim] open failed: %s\n", path); return false; }
 
-  uint8_t hdr[12];
+  uint8_t hdr[12] = {0};
   if (!readFully(cf, hdr, 12) || hdr[0] != 'C' || hdr[1] != 'R' || hdr[2] != 2) {
-    console.logf("[anim] bad header: %s\n", path); cf.close(); return false;
+    console.logf("[anim] bad header: %s (%02X %02X %02X) size %u", path, hdr[0], hdr[1], hdr[2], (unsigned)cf.size());
+    cf.close();
+    return false;
   }
   fPalN    = hdr[3];
   fW       = u16(hdr + 4);
@@ -140,12 +142,14 @@ static int playFrame() {
 }
 
 void AnimationManager::setState(ClawdState s) {
-  if (s == _current && (_open || !_assetsOk)) return;
+  if (s == _current && (_open || !_assetsOk || _openFailed)) return;
   _current = s;
+  _openFailed = false;
   if (_assetsOk && openState(s)) {
     _nextFrameAt = millis();
   } else {
     _open = false;
+    _openFailed = true;    // don't hammer a broken/missing asset every frame
     drawFallback(s);
   }
 }

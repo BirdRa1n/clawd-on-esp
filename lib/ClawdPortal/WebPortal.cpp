@@ -16,35 +16,46 @@ static const char *REPO_RAW = "https://raw.githubusercontent.com/BirdRa1n/clawd-
 static const char *ASSET_FILES[] = {"idle", "thinking", "working", "juggling", "carrying",
                                     "sweeping", "attention", "notification", "error", "sleeping"};
 
-// Streams a URL to a file on the given filesystem. HTTPS with cert check off
-// (public repo assets on the LAN). Returns bytes written.
+// Downloads a URL to a file. Forces HTTP/1.0 so the server sends a plain body
+// with Content-Length (no chunked transfer-encoding — the chunked path corrupts
+// the start of the file here), then copies the raw stream to the file.
 static int downloadTo(fs::FS &fsdst, const String &url, const String &path) {
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.useHTTP10(true);                                  // -> Content-Length, no chunking
   if (!http.begin(client, url)) return 0;
   int code = http.GET();
-  if (code != 200) { http.end(); return 0; }
-  File f = fsdst.open(path, FILE_WRITE);
+  if (code != HTTP_CODE_OK) { console.logf("[sd] http %d", code); http.end(); return 0; }
+  int len = http.getSize();
+  if (fsdst.exists(path)) fsdst.remove(path);
+  File f = fsdst.open(path, "w");
   if (!f) { http.end(); return 0; }
+
   WiFiClient *stream = http.getStreamPtr();
-  int remaining = http.getSize();
-  uint8_t buf[1024];
+  uint8_t buf[512];
   int total = 0;
-  while (http.connected() && (remaining > 0 || remaining == -1)) {
-    size_t avail = stream->available();
-    if (avail) {
-      int r = stream->readBytes(buf, avail > sizeof(buf) ? sizeof(buf) : avail);
-      f.write(buf, r);
-      total += r;
-      if (remaining > 0) remaining -= r;
+  uint32_t idle = millis();
+  while (http.connected() && (len < 0 || total < len)) {
+    int a = stream->available();
+    if (a > 0) {
+      int r = stream->readBytes(buf, a > (int)sizeof(buf) ? sizeof(buf) : a);
+      if (r > 0) { f.write(buf, r); total += r; idle = millis(); }
     } else {
+      if (millis() - idle > 8000) break;                // stall guard
       delay(1);
     }
     yield();
   }
+  f.flush();
   f.close();
   http.end();
+
+  File v = fsdst.open(path, "r");
+  uint8_t h[3] = {0, 0, 0};
+  if (v) { v.read(h, 3); v.close(); }
+  console.logf("[sd] %s: %d/%d bytes  hdr %02X %02X %02X", path.c_str(), total, len, h[0], h[1], h[2]);
   return total;
 }
 #else

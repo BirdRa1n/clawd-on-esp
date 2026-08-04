@@ -23,6 +23,7 @@ private:
   TFT_eSPI  *_tft = nullptr;
   ClawdState _current = (ClawdState)0xFF;
   bool       _open = false;
+  bool       _openFailed = false;    // stop retrying a state that failed to open
   bool       _assetsOk = false;
   uint8_t    _scale = 100;           // render size, percent
   uint32_t   _nextFrameAt = 0;
